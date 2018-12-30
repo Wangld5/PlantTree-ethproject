@@ -1,0 +1,159 @@
+<html>
+
+<head>
+    <title>PlantTree.eth</title>
+    <script src="https://unpkg.com/vue/dist/vue.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/base.css">
+    <script src="https://unpkg.com/element-ui@2.4.11/lib/index.js"></script>
+</head>
+
+<body>
+    <div id="main">
+        <!--choose which to login dialog-->
+        <el-dialog id="loginDialog" title="Welcome to PlantTree.eth" :visible.sync="loginDialogVisiable" center :close-on-click-modal=false :close-on-press-escape=false :show-close=false>
+            <el-button round="true" type="warning" class="loginButton" :loading="isPlanter" v-bind:disabled="isAsker" @click="planterClicked">Login as Planter</el-button>
+            <el-button round="true" type="info" class="loginButton" :loading="isAsker" v-bind:disabled="isPlanter" @click="askerClicked">Login as Asker</el-button>
+        </el-dialog>
+        <el-container id="mainContainer">
+            <el-aside>
+                <el-menu :default-active="'0'" background-color="#CCFF00" @select="menuSelect">
+                    <el-menu-item index="1" v-bind:disabled="!loginStatus">
+                        <span slot="title">Tree Message</span>
+                    </el-menu-item>
+                    <el-menu-item index="2" v-bind:disabled="!loginStatus">
+                        <span slot="title">Order</span>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            <el-main style="position: relative;" id="scrollContainer" v-loading="loadMain">
+                <!--tree message -->
+                <!--owned planted-->
+                <transition name="el-fade-in" appear>
+                    <el-tabs v-show="current === '1'" v-model="TreeLabel" @tab-click="treeTabClicked" style="position:fixed;">
+                        <el-tab-pane label="Owned" name="owned"></el-tab-pane>
+                        <el-tab-pane label="Planted" name="planted" :disabled="actorType !== 0"></el-tab-pane>
+                    </el-tabs>
+                </transition>
+                <!--tree message-->
+                <div style="position: absolute; width: calc(100% - 40px); top: 80px;">
+                    <transition-group name="el-fade-in" appear enter leave>
+                        <el-card v-show="current === '1'" v-for="tree in trees" class="tree-card" :key="tree.treeId">
+                            <div slot="header">
+                                <h3>Tree name</h3>
+                            </div>
+                            <div class="clearfix">
+
+                                <div class="tree-title">{{ tree.treeName }}</div>
+                            </div>
+                        </el-card>
+                    </transition-group>
+                </div>
+                <!--planted tree button-->
+                <transition name="el-fade-in" appear>
+                    <el-button type="warning" icon="el-icon-edit" circle style="
+                    position:absolute; 
+                    left: 55px; 
+                    bottom: 40px;
+                    transform: scale(2)" size="medium" v-show="current === '1' && TreeLabel === 'planted'" @click="plantDialogVisiable = true"></el-button>
+                </transition>
+                <!--planted dialog-->
+                <el-dialog id="editingTreeDialog" title="edit tree message" :visible.sync="plantDialogVisiable">
+                    <el-form label-position="top" label-width="80px" :model="newTree" ref="newTreeForm">
+                        <el-form-item label="TreeName" prop="treeName" :rules="
+                      [{ required: true, message: 'TreeName field cannot stay empty.'}]">
+                            <el-input v-model="newTree.treeName"></el-input>
+                        </el-form-item>
+                        <el-form-item label="TreeMessage" prop="treeMessage" :rules="
+                        [{ required: true, message: 'There must be some tree message.'}]">
+                            <el-input v-model="newTree.treeMessage" type="textarea" autosize></el-input>
+                        </el-form-item>
+                    </el-form>
+
+                    <div slot="footer" class="dialog-footer">
+                        <el-button @click="plantDialogVisiable = false">Cancel</el-button>
+                        <el-button type="primary" @click="plantTree">Create</el-button>
+                    </div>
+                </el-dialog>
+
+                <!--order system-->
+                <!--received sent-->
+                <transition name="el-fade-in" appear>
+                    <el-tabs v-show="current === '2'" v-model="orderLabel" @tab-click="orderTabClicked" style="position:fixed;">
+                        <el-tab-pane label="Received" name="received"></el-tab-pane>
+                        <el-tab-pane label="Sent" name="sent" :disabled="actorType !== 1"></el-tab-pane>
+                    </el-tabs>
+                </transition>
+                <!--order-->
+                <div style="position: absolute; width: calc(100% - 40px); top: 80px;">
+                    <transition-group name="el-fade-in" appear enter leave>
+                        <el-card v-show="current === '2'" v-for="order in orders" class="tree-card" :key="order.orderId" style="position: relative;">
+                            <div slot="header" class="clearfix">
+                                <div>
+                                    <div class="order-from-label" style="border-bottom: 1px solid rgba(0,0,0,0.2);">FROM</div>
+                                    <div class="order-from">{{ order.from }}</div>
+                                </div>
+                                <div>
+                                    <div class="order-to-label">TO</div>
+                                    <div class="order-to">{{ order.to }}</div>
+                                </div>
+                                <transition name="el-fade-in" appear>
+                                    <el-button style="position: absolute; top: 10px; right: 20px; font-size: 26px;" type="text" @click="finishOrderClicked(order.orderId, order.price)" v-show="orderLabel === 'received'" :disabled="order.isDone">Finish</el-button>
+                                </transition>
+                                <transition name="el-fade-in" appear>
+                                    <el-button style="position: absolute; top: 10px; right: 20px; font-size: 26px;" type="text" disabled v-show="orderLabel === 'sent' && order.isDone">Done</el-button>
+                                </transition>
+                            </div>
+                            <div class="order-price-label">ETH</div>
+                            <div class="order-price">
+                                {{ order.price }}
+                            </div>
+                        </el-card>
+                    </transition-group>
+                </div>
+                <!--sent order-->
+                <el-dialog id="sendDialog" title="Send Order" :visible.sync="sendOrderDialogVisiable">
+                    <el-form label-position="top" label-width="80px" :model="newOrder" ref="newOrderForm">
+                        <el-form-item label="To Account Address" prop="to" :rules="
+              [{ required: true, message: 'To account address cannot stay empty.'}]">
+                            <el-input v-model="newOrder.to"></el-input>
+                        </el-form-item>
+                        <el-form-item label="Price" prop="price" :rules="
+                [{ required: true, message: 'You must specify the number of eth you would like to pay.'},
+                { type: 'number', message: 'This price must be a number.'}]">
+                            <el-input v-model.number="newOrder.price">
+                                <template slot="append">eth</template>
+                            </el-input>
+                        </el-form-item>
+                    </el-form>
+
+                    <div slot="footer" class="dialog-footer">
+                        <el-button @click="sendOrderDialogVisiable = false">Cancel</el-button>
+                        <el-button type="primary" @click="sendOrder">Send</el-button>
+                    </div>
+                </el-dialog>
+                <!--sent order button-->
+                <transition name="el-fade-in" appear>
+                    <el-button type="warning" icon="el-icon-plus" circle style="position:absolute; left: 55px; bottom: 40px;
+                    transform: scale(2)" size="medium" v-show="current === '2' && orderLabel === 'sent'" @click="sendOrderDialogVisiable = true"></el-button>
+                </transition>
+                <!--finish order-->
+                <el-dialog id="finishingOrderDialog" title="Choose a tree to finish order" :visible.sync="finishOrderDialogVisiable">
+                    <el-table :data="ownedTrees" highlight-current-row @current-change="handleChooseChanged" height="400" :loading="loadChoose" empty-text="No Data">
+                        <el-table-column type="index" width="50"></el-table-column>
+                        <el-table-column property="treeName" label="TreeName"></el-table-column>
+                        <el-table-column property="treeMessage" label="TreeMessage"></el-table-column>
+                    </el-table>
+
+                    <div slot="footer" class="dialog-footer">
+                        <el-button @click="finishingOrderDialog = false">Cancel</el-button>
+                        <el-button type="primary" @click="finishOrder">Finish</el-button>
+                    </div>
+                </el-dialog>
+            </el-main>
+        </el-container>
+    </div>
+</body>
+<script src="app.js"></script>
+
+</html>
